@@ -26,7 +26,23 @@ async function saveForm(formId: string, formSpec: string) {
 
 export async function POST(request: Request) {
   try {
-    const incoming = await request.json() // { messages, threadId, responseId... }
+    const incoming = await request.json()
+    if (!Array.isArray(incoming.messages)) {
+      if (incoming.prompt && typeof incoming.prompt === 'object') {
+        incoming.messages = [incoming.prompt]
+      } else {
+        console.error(
+          'Invalid /api/chat payload, missing messages array:',
+          incoming
+        )
+        return NextResponse.json(
+          {
+            error: 'Invalid chat request payload: `messages` must be an array',
+          },
+          { status: 400 }
+        )
+      }
+    }
 
     const messagesToSend = [
       { role: 'system', content: systemPrompt },
