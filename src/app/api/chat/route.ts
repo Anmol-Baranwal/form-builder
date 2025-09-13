@@ -1,9 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
-import fs from 'fs/promises'
-import path from 'path'
-import crypto from 'crypto'
+import { saveForm } from '../../../lib/inMemoryStore'
 
 // ---- SYSTEM PROMPT ----
 const systemPrompt = `
@@ -16,13 +15,11 @@ Rules:
 - Always close with <content> ... </content>.
 - After form creation, you may also include a Link component pointing to "/forms/{formId}" where the saved form can be viewed.
 - For non-form queries, respond conversationally (no UI JSON unless relevant).
-`
 
-async function saveForm(formId: string, formSpec: string) {
-  const dir = path.join(process.cwd(), 'forms')
-  await fs.mkdir(dir, { recursive: true })
-  await fs.writeFile(path.join(dir, `${formId}.json`), formSpec, 'utf-8')
-}
+<ui_rules>
+- When the assistant replies with UI JSON wrapped in <content> tags, the frontend must render that JSON spec using C1Component.
+</ui_rules>
+`
 
 export async function POST(request: Request) {
   try {
@@ -50,6 +47,17 @@ export async function POST(request: Request) {
     ]
 
     // ---- CALL THESYS ----
+    const requestBody = {
+      model:
+        process.env.THESYS_MODEL || 'c1/anthropic/claude-3.5-sonnet/v-20250709',
+      threadId: incoming.threadId,
+      responseId: incoming.responseId,
+      messages: messagesToSend,
+    }
+    console.log(
+      '[api/chat] Thesys request body:',
+      JSON.stringify(requestBody, null, 2)
+    )
     const thRes = await fetch(
       'https://api.thesys.dev/v1/embed/chat/completions',
       {
@@ -58,14 +66,7 @@ export async function POST(request: Request) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${process.env.THESYS_API_KEY ?? ''}`,
         },
-        body: JSON.stringify({
-          model:
-            process.env.THESYS_MODEL ||
-            'c1/anthropic/claude-3.5-sonnet/v-20250709',
-          threadId: incoming.threadId,
-          responseId: incoming.responseId,
-          messages: messagesToSend,
-        }),
+        body: JSON.stringify(requestBody),
       }
     )
 
@@ -75,8 +76,11 @@ export async function POST(request: Request) {
     }
 
     const thJson = await thRes.json()
+    console.log('[api/chat] Thesys response:', JSON.stringify(thJson, null, 2))
     const choiceMsg = thJson?.choices?.[0]?.message
+    console.log('[api/chat] choiceMsg:', JSON.stringify(choiceMsg, null, 2))
     const content = choiceMsg?.content
+    console.log('[api/chat] content:', content)
     const role = choiceMsg?.role ?? 'assistant'
 
     if (!content) {
@@ -87,23 +91,66 @@ export async function POST(request: Request) {
     }
 
     // ---- DETECT FORM CREATION ----
-    if (content.includes('"component":"Form"')) {
-      const formId = crypto.randomUUID()
-      await saveForm(formId, content)
-
-      // augment with a link
-      const linkMsg = `<content>{
-        "component": "Link",
-        "props": {
-          "href": "/forms/${formId}",
-          "text": "✅ Form created! View it here"
-        }
-      }</content>`
-
+    // Look for UI JSON spec wrapped in <content>...</content>
+    const match = content.match(/<content>([\s\S]*?)<\/content>/)
+    if (match) {
+      const raw = match[1].trim()
+      console.log('[api/chat] Detected form spec raw:', raw)
+      // HTML-unescape common entities before JSON parse
+      const decoded = raw
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+      console.log('[api/chat] Decoded form spec:', decoded)
+      let spec: any = decoded
+      try {
+        spec = JSON.parse(decoded)
+        console.log(
+          '[api/chat] Parsed form spec:',
+          JSON.stringify(spec, null, 2)
+        )
+      } catch (err) {
+        console.log(
+          '[api/chat] Error parsing JSON form spec, using decoded string:',
+          err
+        )
+      }
+      // unwrap nested component wrapper if needed (spec.component.component)
+      if (
+        spec &&
+        typeof spec === 'object' &&
+        spec.component &&
+        typeof spec.component === 'object' &&
+        typeof spec.component.component === 'string'
+      ) {
+        console.log('[api/chat] Unwrapping nested component:', spec.component)
+        spec = spec.component
+      }
+      const lastUser = incoming.messages
+        .slice()
+        .reverse()
+        .find((m: any) => m.role === 'user')
+      const prompt = lastUser?.content ?? ''
+      const rec = saveForm({
+        prompt,
+        spec,
+        title: spec?.title,
+        branding: spec?.branding,
+      })
+      const linkSpec = {
+        component: 'Link',
+        props: {
+          href: `/forms/${rec.id}`,
+          text: '✅ Form created! View it here',
+        },
+      }
+      const linkMsg = `<content>${JSON.stringify(linkSpec)}</content>`
       return NextResponse.json({
         messages: [
-          { role, content }, // original form spec
-          { role, content: linkMsg }, // link to saved form
+          { role, content: `<content>${JSON.stringify(spec)}</content>` },
+          { role, content: linkMsg },
         ],
       })
     }
