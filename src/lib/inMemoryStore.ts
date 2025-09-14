@@ -1,3 +1,4 @@
+// src/lib/inMemoryStore.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { randomUUID } from 'crypto'
 
@@ -10,17 +11,9 @@ type FormRec = {
   createdAt: string
 }
 
-type ResponseRec = {
-  id: string
-  formId: string
-  data: any
-  submittedAt: string
-}
-
 const forms = new Map<string, FormRec>()
-const responses: ResponseRec[] = []
 
-export function saveForm({
+export function saveFormInMemory({
   prompt,
   title,
   spec,
@@ -32,39 +25,24 @@ export function saveForm({
   branding?: any
 }) {
   const id = randomUUID()
-  const r: FormRec = {
+  const rec: FormRec = {
     id,
     prompt,
     title,
-    spec,
     branding: branding ?? {},
+    spec,
     createdAt: new Date().toISOString(),
   }
-  forms.set(id, r)
-  return r
-}
-
-export function getForm(id: string) {
-  return forms.get(id) ?? null
-}
-
-export function listForms() {
-  return Array.from(forms.values()).sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt)
-  )
-}
-
-export function saveResponse(formId: string, data: any) {
-  const rec: ResponseRec = {
-    id: randomUUID(),
-    formId,
-    data,
-    submittedAt: new Date().toISOString(),
-  }
-  responses.push(rec)
+  forms.set(id, rec)
   return rec
 }
 
-export function listResponses(formId?: string) {
-  return formId ? responses.filter((r) => r.formId === formId) : responses
+export function getFormInMemory(id: string) {
+  return forms.get(id) ?? null
+}
+
+export function listFormsInMemory() {
+  return Array.from(forms.values()).sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt)
+  )
 }

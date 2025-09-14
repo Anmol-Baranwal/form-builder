@@ -1,63 +1,125 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// src/app/api/chat/route.ts
 export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
-import { saveForm } from '../../../lib/inMemoryStore'
+import { saveFormInMemory } from '@/lib/inMemoryStore' // optional; only if SAVE_FORMS=true
 
-// ---- SYSTEM PROMPT ----
 const systemPrompt = `
 You are a form-builder assistant.
-
 Rules:
-- When the user asks to "create a form", reply ONLY with a valid UI JSON spec wrapped in <content> tags.
-- Use a "Form" component with children "Field" components.
-- Each "Field" must have props: id, label, type (e.g. "text", "email", "number").
-- Always close with <content> ... </content>.
-- After form creation, you may also include a Link component pointing to "/forms/{formId}" where the saved form can be viewed.
-- For non-form queries, respond conversationally (no UI JSON unless relevant).
-
+- If the user asks to create a form, respond with a UI JSON spec wrapped in <content>...</content>.
+- Use components like "Form", "Field", "Input", "Select" etc.
+- Avoid plain text outside <content> for form outputs.
+- For non-form queries reply normally.
 <ui_rules>
-- When the assistant replies with UI JSON wrapped in <content> tags, the frontend must render that JSON spec using C1Component.
+- Wrap UI JSON in <content> tags so GenUI can render it.
 </ui_rules>
 `
+
+function decodeHtmlEntities(s: string) {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+}
 
 export async function POST(request: Request) {
   try {
     const incoming = await request.json()
-    if (!Array.isArray(incoming.messages)) {
-      if (incoming.prompt && typeof incoming.prompt === 'object') {
-        incoming.messages = [incoming.prompt]
-      } else {
-        console.error(
-          'Invalid /api/chat payload, missing messages array:',
-          incoming
-        )
-        return NextResponse.json(
-          {
-            error: 'Invalid chat request payload: `messages` must be an array',
-          },
-          { status: 400 }
-        )
+    console.log(
+      '[api/chat] raw incoming:',
+      JSON.stringify(incoming).slice(0, 1000)
+    )
+
+    // Normalize client shapes -> messages array
+    let incomingMessages: any[] = []
+    if (Array.isArray(incoming.messages)) incomingMessages = incoming.messages
+    else if (incoming.message && typeof incoming.message === 'object')
+      incomingMessages = [incoming.message]
+    else if (incoming.prompt) {
+      if (typeof incoming.prompt === 'string')
+        incomingMessages = [{ role: 'user', content: incoming.prompt }]
+      else if (typeof incoming.prompt === 'object') {
+        const p = incoming.prompt
+        incomingMessages = [
+          { role: p.role ?? 'user', content: p.content ?? JSON.stringify(p) },
+        ]
       }
+    }
+
+    if (incomingMessages.length === 0) {
+      console.error(
+        '[api/chat] missing messages after normalize:',
+        JSON.stringify(incoming).slice(0, 1000)
+      )
+      return NextResponse.json(
+        { error: 'Invalid chat payload: missing messages/prompt' },
+        { status: 400 }
+      )
     }
 
     const messagesToSend = [
       { role: 'system', content: systemPrompt },
-      ...incoming.messages,
+      ...incomingMessages,
     ]
 
-    // ---- CALL THESYS ----
+    // 🔥 Add rules here
     const requestBody = {
-      model:
-        process.env.THESYS_MODEL || 'c1/anthropic/claude-3.5-sonnet/v-20250709',
+      model: process.env.THESYS_MODEL || 'c1-nightly',
       threadId: incoming.threadId,
       responseId: incoming.responseId,
       messages: messagesToSend,
+      rules: {
+        systemui: [
+          {
+            id: 'form-builder-ui',
+            description:
+              'Generate dynamic form UI components based on user request',
+            components: [
+              'Form',
+              'Input',
+              'Button',
+              'Card',
+              'CardHeader',
+              'TextContent',
+            ],
+          },
+        ],
+        prompt: [
+          {
+            id: 'form-builder-prompt',
+            description:
+              'User is asking for forms. Generate structured component JSON with appropriate fields.',
+            examples: [
+              {
+                input: 'create a form for me with name and email',
+                output: {
+                  component: 'Form',
+                  props: {
+                    children: [
+                      {
+                        component: 'Input',
+                        props: { label: 'Name', type: 'text' },
+                      },
+                      {
+                        component: 'Input',
+                        props: { label: 'Email', type: 'email' },
+                      },
+                      { component: 'Button', props: { text: 'Submit' } },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
     }
-    console.log(
-      '[api/chat] Thesys request body:',
-      JSON.stringify(requestBody, null, 2)
-    )
+
+    console.log('[api/chat] calling Thesys (messages omitted)')
     const thRes = await fetch(
       'https://api.thesys.dev/v1/embed/chat/completions',
       {
@@ -71,96 +133,58 @@ export async function POST(request: Request) {
     )
 
     if (!thRes.ok) {
-      const errText = await thRes.text()
-      return NextResponse.json({ error: errText }, { status: thRes.status })
+      const txt = await thRes.text()
+      console.error(
+        '[api/chat] Thesys error:',
+        thRes.status,
+        txt.slice(0, 2000)
+      )
+      return NextResponse.json({ error: txt }, { status: thRes.status })
     }
 
     const thJson = await thRes.json()
-    console.log('[api/chat] Thesys response:', JSON.stringify(thJson, null, 2))
-    const choiceMsg = thJson?.choices?.[0]?.message
-    console.log('[api/chat] choiceMsg:', JSON.stringify(choiceMsg, null, 2))
-    const content = choiceMsg?.content
-    console.log('[api/chat] content:', content)
-    const role = choiceMsg?.role ?? 'assistant'
+    console.log(
+      '[api/chat] Thesys raw response (truncated):',
+      JSON.stringify(thJson).slice(0, 2000)
+    )
 
-    if (!content) {
-      return NextResponse.json(
-        { error: 'No content from Thesys' },
-        { status: 500 }
-      )
+    const choice = thJson?.choices?.[0]?.message ?? null
+    if (!choice && Array.isArray(thJson?.messages)) {
+      return NextResponse.json(thJson)
+    }
+    if (!choice) return NextResponse.json(thJson)
+
+    // 🔑 FIX: Strip <content> wrapper and parse
+    const rawContent = choice.content ?? ''
+    const cleaned = rawContent
+      .replace(/^<content>/, '')
+      .replace(/<\/content>$/, '')
+      .trim()
+
+    let parsedContent: any = cleaned
+    try {
+      parsedContent = JSON.parse(decodeHtmlEntities(cleaned))
+      console.log('[api/chat] parsed content:', parsedContent)
+    } catch (err) {
+      console.warn('[api/chat] Could not parse JSON, sending raw string:', err)
     }
 
-    // ---- DETECT FORM CREATION ----
-    // Look for UI JSON spec wrapped in <content>...</content>
-    const match = content.match(/<content>([\s\S]*?)<\/content>/)
-    if (match) {
-      const raw = match[1].trim()
-      console.log('[api/chat] Detected form spec raw:', raw)
-      // HTML-unescape common entities before JSON parse
-      const decoded = raw
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'")
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-      console.log('[api/chat] Decoded form spec:', decoded)
-      let spec: any = decoded
-      try {
-        spec = JSON.parse(decoded)
-        console.log(
-          '[api/chat] Parsed form spec:',
-          JSON.stringify(spec, null, 2)
-        )
-      } catch (err) {
-        console.log(
-          '[api/chat] Error parsing JSON form spec, using decoded string:',
-          err
-        )
-      }
-      // unwrap nested component wrapper if needed (spec.component.component)
-      if (
-        spec &&
-        typeof spec === 'object' &&
-        spec.component &&
-        typeof spec.component === 'object' &&
-        typeof spec.component.component === 'string'
-      ) {
-        console.log('[api/chat] Unwrapping nested component:', spec.component)
-        spec = spec.component
-      }
-      const lastUser = incoming.messages
-        .slice()
-        .reverse()
-        .find((m: any) => m.role === 'user')
-      const prompt = lastUser?.content ?? ''
-      const rec = saveForm({
-        prompt,
-        spec,
-        title: spec?.title,
-        branding: spec?.branding,
-      })
-      const linkSpec = {
-        component: 'Link',
-        props: {
-          href: `/forms/${rec.id}`,
-          text: '✅ Form created! View it here',
-        },
-      }
-      const linkMsg = `<content>${JSON.stringify(linkSpec)}</content>`
-      return NextResponse.json({
-        messages: [
-          { role, content: `<content>${JSON.stringify(spec)}</content>` },
-          { role, content: linkMsg },
-        ],
-      })
+    let finalContent = parsedContent
+    if (typeof parsedContent === 'object') {
+      finalContent = `<content>${JSON.stringify(parsedContent)}</content>`
+      console.log('[api/chat] final content:', finalContent)
     }
 
-    // ---- NORMAL PASS-THROUGH ----
-    return NextResponse.json({ messages: [choiceMsg] })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return NextResponse.json({
+      id: incoming.responseId,
+      type: 'message',
+      role: 'assistant',
+      content: finalContent,
+    })
   } catch (err: any) {
+    console.error('[api/chat] handler error:', err)
     return NextResponse.json(
-      { error: err.message ?? String(err) },
+      { error: err?.message ?? String(err) },
       { status: 500 }
     )
   }

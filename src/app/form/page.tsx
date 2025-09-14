@@ -18,7 +18,7 @@ export default function FormPage() {
             console.log('Form submitted:', action.llmFriendlyMessage)
             alert('Form submitted! (check console)')
           }}
-          isStreaming={false}
+          isStreaming={true}
         />
       </ThemeProvider>
     </main>
