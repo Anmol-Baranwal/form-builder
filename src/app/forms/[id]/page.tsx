@@ -1,48 +1,66 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// src/app/forms/[id]/page.tsx
 'use client'
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import '@crayonai/react-ui/styles/index.css'
-import { ThemeProvider, C1Component } from '@thesysai/genui-sdk'
-import Image from 'next/image'
+import { C1Component, ThemeProvider } from '@thesysai/genui-sdk'
 
-export default function FormViewer() {
+export default function FormPage() {
   const { id } = useParams()
-  const [spec, setSpec] = useState<any | null>(null)
-  const [meta, setMeta] = useState<any | null>(null)
+  const [schema, setSchema] = useState(null)
+  const [formTitle, setFormTitle] = useState('')
 
   useEffect(() => {
-    if (!id) return
-    fetch(`/api/getForm?formId=${id}`)
+    fetch(`/api/forms/get?id=${id}`)
       .then((r) => r.json())
       .then((d) => {
-        setSpec(d?.formSpec ?? null)
-        setMeta(d?.meta ?? null)
-      })
-      .catch((err) => {
-        console.error('getForm error', err)
+        setSchema(d.schema)
+        setFormTitle(d.title)
       })
   }, [id])
 
-  if (!spec)
-    return <div style={{ padding: 20 }}>Loading or form not found.</div>
+  if (!schema) return <p>Loading form...</p>
 
   return (
-    <main style={{ padding: 16 }}>
-      {meta?.branding?.logoUrl && (
-        <Image src={meta.branding.logoUrl} alt="logo" width={120} />
-      )}
-      <h1 style={{ marginTop: 8 }}>{meta?.title || 'Form'}</h1>
-      <ThemeProvider>
-        <C1Component
-          c1Response={spec}
-          isStreaming={true}
-          onAction={(action: any) => {
-            console.log('form action', action)
-          }}
-        />
-      </ThemeProvider>
-    </main>
+    <ThemeProvider>
+      <h1>{formTitle}</h1>
+      <C1Component
+        c1Response={schema}
+        isStreaming={true}
+        onAction={async (action) => {
+          await fetch('/api/forms/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              formId: id,
+              response: action.llmFriendlyMessage,
+            }),
+          })
+          alert('Thanks! Your response has been received.')
+        }}
+      />
+    </ThemeProvider>
   )
 }
+
+// import { useEffect, useState } from 'react'
+// import { C1Component, ThemeProvider } from '@thesysai/genui-sdk'
+
+// interface FormPageProps {
+//   params: { id: string }
+// }
+
+// export default function FormPage({ params }: FormPageProps) {
+//   const [schema, setSchema] = useState(null)
+//   useEffect(() => {
+//     fetch(`/api/getForm?id=${params.id}`)
+//       .then((r) => r.json())
+//       .then((d) => setSchema(d.schema))
+//   }, [params.id])
+
+//   if (!schema) return <p>Loading form...</p>
+
+//   return (
+//     <ThemeProvider>
+//       <C1Component c1Response={schema} isStreaming={true} />
+//     </ThemeProvider>
+//   )
+// }

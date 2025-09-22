@@ -29,7 +29,7 @@ export default function Home() {
         <C1ChatWrapper />
       </section>
 
-      <section>
+      {/* <section>
         <h2 className="mb-2 text-xl font-semibold">Saved forms</h2>
         <ul className="space-y-2">
           {forms.length === 0 && (
@@ -51,7 +51,7 @@ export default function Home() {
             </li>
           ))}
         </ul>
-      </section>
+      </section> */}
     </div>
   )
 }
