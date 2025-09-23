@@ -1,66 +1,59 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { C1Component, ThemeProvider } from '@thesysai/genui-sdk'
+import { C1Component } from '@thesysai/genui-sdk'
 
 export default function FormPage() {
-  const { id } = useParams()
-  const [schema, setSchema] = useState(null)
-  const [formTitle, setFormTitle] = useState('')
+  const params = useParams()
+  const { id } = params
+  const [c1Response, setC1Response] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`/api/forms/get?id=${id}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setSchema(d.schema)
-        setFormTitle(d.title)
-      })
+    async function fetchForm() {
+      const res = await fetch(`/api/forms/get?id=${id}`)
+      const data = await res.json()
+
+      // The schema we stored in Mongo is JSON
+      // Wrap it back into <content>...</content> string
+      const wrappedSpec = `<content>${JSON.stringify(data.schema)}</content>`
+
+      console.log('wrappedSpec', wrappedSpec)
+      setC1Response(wrappedSpec)
+    }
+    if (id) fetchForm()
   }, [id])
 
-  if (!schema) return <p>Loading form...</p>
+  if (!c1Response) return <div>Loading...</div>
 
   return (
-    <ThemeProvider>
-      <h1>{formTitle}</h1>
+    <div className="p-4">
       <C1Component
-        c1Response={schema}
-        isStreaming={true}
+        c1Response={c1Response}
+        isStreaming={false} // since this is static schema
         onAction={async (action) => {
-          await fetch('/api/forms/submit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              formId: id,
-              response: action.llmFriendlyMessage,
-            }),
-          })
-          alert('Thanks! Your response has been received.')
+          console.log('🔹 Action fired:', action)
+
+          try {
+            const res = await fetch(`/api/forms/submit`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                formId: id,
+                values: action.llmFriendlyMessage,
+              }),
+            })
+
+            if (!res.ok) {
+              console.error('Failed to submit form:', await res.text())
+            } else {
+              console.log('✅ Form submitted successfully')
+            }
+          } catch (err) {
+            console.error('Error submitting form:', err)
+          }
         }}
       />
-    </ThemeProvider>
+    </div>
   )
 }
-
-// import { useEffect, useState } from 'react'
-// import { C1Component, ThemeProvider } from '@thesysai/genui-sdk'
-
-// interface FormPageProps {
-//   params: { id: string }
-// }
-
-// export default function FormPage({ params }: FormPageProps) {
-//   const [schema, setSchema] = useState(null)
-//   useEffect(() => {
-//     fetch(`/api/getForm?id=${params.id}`)
-//       .then((r) => r.json())
-//       .then((d) => setSchema(d.schema))
-//   }, [params.id])
-
-//   if (!schema) return <p>Loading form...</p>
-
-//   return (
-//     <ThemeProvider>
-//       <C1Component c1Response={schema} isStreaming={true} />
-//     </ThemeProvider>
-//   )
-// }

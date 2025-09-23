@@ -21,6 +21,9 @@ Rules:
 </ui_rules>
 `
 
+// 🔑 Persist form spec across requests
+const globalForFormCache = global as unknown as { lastFormSpec?: any }
+
 export async function POST(req: NextRequest) {
   try {
     const incoming = await req.json()
@@ -88,8 +91,6 @@ export async function POST(req: NextRequest) {
     const llmStream = await client.chat.completions.create({
       model:
         process.env.THESYS_MODEL || 'c1/anthropic/claude-3.5-sonnet/v-20250709',
-      // threadId: incoming.threadId,
-      // responseId: incoming.responseId,
       messages: messagesToSend,
       stream: true,
     })
@@ -97,45 +98,48 @@ export async function POST(req: NextRequest) {
     // Use transformStream to pipe streaming data to C1Chat
     const responseStream = transformStream(
       llmStream,
-      (chunk) => {
-        // Each streamed chunk has .choices[0].delta.content (NOT .choices.delta.content!)
-        // Make sure it's the right path
-        return chunk?.choices?.[0]?.delta?.content ?? ''
-      },
+      (chunk) => chunk?.choices?.[0]?.delta?.content ?? '',
       {
         onEnd: async ({ accumulated }) => {
-          if (isSaveIntent(incomingMessages)) {
-            // Extract schema from the accumulated string
-            // Example: <content>{ ... UI JSON ... }</content>
-            const rawSpec = Array.isArray(accumulated)
-              ? accumulated.join('')
-              : accumulated
-            const match = rawSpec.match(/<content>([\s\S]+)<\/content>/)
+          const rawSpec = Array.isArray(accumulated)
+            ? accumulated.join('')
+            : accumulated
 
-            if (match) {
-              let schema
-              let extractedContent = match[1].trim()
-              extractedContent = decodeHtmlEntities(extractedContent)
-              try {
-                schema = JSON.parse(extractedContent)
-              } catch {
-                console.warn(
-                  'Content inside <content> tags is not JSON, treating as plain string:',
-                  extractedContent
-                )
-                // If it's a plain string indicating a save command, handle accordingly or skip save.
-                return
+          const match = rawSpec.match(/<content>([\s\S]+)<\/content>/)
+          if (match) {
+            const extractedContent = decodeHtmlEntities(match[1].trim())
+            console.log('📜 UI Spec received from LLM:', extractedContent)
+
+            try {
+              const schema = JSON.parse(extractedContent)
+              const hasForm =
+                JSON.stringify(schema).includes('"component":"Form"')
+
+              if (hasForm) {
+                globalForFormCache.lastFormSpec = schema
+                console.log('💾 Stored last form schema globally')
               }
-              if (schema) {
-                await dbConnect()
-                await Form.create({
-                  title: 'Untitled Form',
-                  description: 'Generated via chat',
-                  schema,
-                })
-                console.log('Form schema auto-saved from chat!')
-                // Optionally respond with form ID or shareable link for confirmation
-              }
+            } catch (err) {
+              console.error('❌ Failed to parse schema JSON:', err)
+            }
+          }
+
+          // ✅ On save intent, persist the *last remembered* schema
+          if (isSaveIntent(incomingMessages)) {
+            const cachedForm = globalForFormCache.lastFormSpec
+            if (cachedForm) {
+              await dbConnect()
+              const doc = await Form.create({
+                title: 'Untitled Form',
+                description: 'Generated via chat',
+                schema: cachedForm,
+              })
+              console.log(
+                '✅ Saved last form schema to Mongo with ID:',
+                doc._id.toString()
+              )
+            } else {
+              console.warn('⚠️ Save intent but no cached form schema found')
             }
           }
         },
