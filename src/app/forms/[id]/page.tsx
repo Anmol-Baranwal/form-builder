@@ -40,7 +40,7 @@ export default function FormPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 formId: id,
-                values: action.llmFriendlyMessage,
+                response: action.llmFriendlyMessage,
               }),
             })
 
