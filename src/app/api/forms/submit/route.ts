@@ -1,34 +1,48 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
 import { dbConnect } from '@/lib/dbConnect'
 import Submission from '@/lib/models/Submission'
-
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-}
 
 function extractFormData(llmMessage?: string) {
   if (!llmMessage || typeof llmMessage !== 'string') {
     console.error('extractFormData called with invalid input:', llmMessage)
     return null
   }
+
   const contextMatch = llmMessage.match(/<context>([\s\S]+)<\/context>/)
   if (!contextMatch) return null
 
   try {
     const jsonData = contextMatch[1]
-    // Decode HTML entities if necessary
     const decoded = jsonData.replace(/&quot;/g, '"')
     const parsed = JSON.parse(decoded)
 
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      const formsData = parsed[0][1]
-      if (formsData && formsData.contact_form) {
-        return formsData.contact_form
+    // parsed = ["User clicked on Button: submit_button", [{contact_form: {...}}]]
+    if (
+      Array.isArray(parsed) &&
+      parsed.length >= 2 &&
+      Array.isArray(parsed[1]) &&
+      parsed[1].length > 0 &&
+      typeof parsed[1][0] === 'object'
+    ) {
+      // Usually the first object in parsed[1] has the form data
+      const formObj = parsed[1][0]
+      // FormObj is something like {contact_form: { ...fields... }}
+
+      // To flatten for all schemas, extract the form name and map each field to {field: value}
+      // For most forms, will be just one key (form name)
+      const formKey = Object.keys(formObj)[0]
+      const fieldsObj = formObj[formKey]
+
+      // Build a shallow object mapping field name to value
+      if (fieldsObj && typeof fieldsObj === 'object') {
+        const fieldValues: Record<string, any> = {}
+        for (const [field, data] of Object.entries(
+          fieldsObj as Record<string, { value: any }>
+        )) {
+          fieldValues[field] = data.value
+        }
+        return fieldValues
       }
     }
     return null
