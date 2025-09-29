@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const runtime = 'nodejs'
-import { dbConnect } from '@/lib/dbConnect'
-import Form from '@/lib/models/Form'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { transformStream } from '@crayonai/stream'
@@ -229,16 +227,16 @@ export async function POST(req: NextRequest) {
             })
             const cachedForm = globalForFormCache.lastFormSpec
             if (cachedForm) {
-              await dbConnect()
-              const doc = await Form.create({
-                title,
-                description,
-                schema: cachedForm,
+              const origin = req.nextUrl.origin
+              await fetch(`${origin}/api/forms/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  title,
+                  description,
+                  schema: cachedForm,
+                }),
               })
-              console.log(
-                '✅ Saved last form schema to Mongo with ID:',
-                doc._id.toString()
-              )
             } else {
               console.warn('⚠️ Save intent but no cached form schema found')
             }
