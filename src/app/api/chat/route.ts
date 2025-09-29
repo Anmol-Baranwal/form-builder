@@ -12,7 +12,15 @@ You are a form-builder assistant.
 Rules:
 - If the user asks to create a form, respond with a UI JSON spec wrapped in <content>...</content>.
 - Use components like "Form", "Field", "Input", "Select" etc.
-- If the user says "save this form" or equivalent, DO NOT generate any new form or UI elements. Instead, acknowledge the save and drive the saving logic on the backend.
+- If the user says "save this form" or equivalent:
+  - DO NOT generate any new form or UI elements.
+  - Instead, acknowledge the save implicitly.
+  - When asking the user for form title and description, generate a form with name="save-form" and two fields:
+    - Input with name="formTitle"
+    - TextArea with name="formDescription"
+    - Do not change these property names.
+  - Wait until the user provides both title and description.
+  - Only after receiving title and description, confirm saving and drive the saving logic on the backend.
 - Avoid plain text outside <content> for form outputs.
 - For non-form queries reply normally.
 <ui_rules>
@@ -21,7 +29,10 @@ Rules:
 `
 
 // 🔑 Persist form spec across requests
-const globalForFormCache = global as unknown as { lastFormSpec?: any }
+const globalForFormCache = global as unknown as {
+  lastFormSpec?: any
+  saveFormSpec?: any
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -71,11 +82,85 @@ export async function POST(req: NextRequest) {
       apiKey: process.env.THESYS_API_KEY,
     })
 
-    function isSaveIntent(messages: string | any[]) {
-      const saveWords = ['save this form', 'finalize', 'store form', 'done']
-      const lastMessage =
-        messages[messages.length - 1]?.content?.toLowerCase() || ''
-      return saveWords.some((w) => lastMessage.includes(w))
+    function isMetaForm(schema: any) {
+      // Detects a "save" metadata UI, eg. form with title/desc fields, not user form
+      // This will depend on your actual LLM responses; for most, form name or root CardHeader can be detected
+      const formName = schema?.component?.props?.children?.find?.(
+        (c: { component: string }) => c.component === 'Form'
+      )?.props?.name
+      return formName === 'save-form'
+    }
+
+    function extractTitleDesc(messages: any[]) {
+      let title = null,
+        description = null
+
+      console.log('Extracting title/desc from messages:', messages.length)
+
+      for (const m of [...messages].reverse()) {
+        console.log(`Message content:`, m.content)
+        // 1. Try to parse context JSON
+        if (m.content?.includes('<context>')) {
+          try {
+            const contextMatch = m.content.match(
+              /<context>([\s\S]+)<\/context>/
+            )
+            if (contextMatch) {
+              const parsed = JSON.parse(decodeHtmlEntities(contextMatch[1]))
+              console.log(
+                'Parsed context JSON for title/desc:',
+                JSON.stringify(parsed).slice(0, 500)
+              )
+              if (Array.isArray(parsed) && parsed[1]?.[0]?.['save-form']) {
+                const formData = parsed[1][0]['save-form']
+                title = formData['formTitle']?.value ?? title
+                description = formData['formDescription']?.value ?? description
+                console.log('Extracted from save-form:', { title, description })
+              }
+            }
+          } catch (err) {
+            console.warn('⚠️ Failed to parse context JSON for title/desc:', err)
+          }
+        }
+
+        // 2. Fallback: plain "title:" / "description:" message style
+        const content = m.content?.toLowerCase()
+        // if (content?.startsWith('title:')) title = m.content.slice(6).trim()
+        // if (content?.startsWith('description:'))
+        //   description = m.content.slice(12).trim()
+
+        // if (title && description) break
+        if (content?.startsWith('title:')) {
+          title = m.content.slice(6).trim()
+          console.log('Extracted from plain text title:', title)
+        }
+        if (content?.startsWith('description:')) {
+          description = m.content.slice(12).trim()
+          console.log('Extracted from plain text description:', description)
+        }
+
+        if (title && description) {
+          console.log('Title and description found, stopping search')
+          break
+        }
+      }
+
+      return { title, description }
+    }
+
+    function isSaveIntent(messages: any[]) {
+      const lastContent = messages[messages.length - 1]?.content || ''
+
+      // case 1: user submitted the save-form
+      if (
+        lastContent.includes('<context>') &&
+        lastContent.includes('save-form')
+      ) {
+        return true
+      }
+
+      // case 2: plain words like "save this form" (but NO context yet) → so not final
+      return false
     }
 
     function decodeHtmlEntities(text: string): string {
@@ -85,6 +170,14 @@ export async function POST(req: NextRequest) {
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
+    }
+
+    function isConfirmationUI(schema: any) {
+      // If the root Card contains a header with title "Form Saved Successfully" (pattern)
+      const header = schema?.component?.props?.children?.find(
+        (c: any) => c.component === 'CardHeader'
+      )
+      return header?.props?.title === 'Form Saved Successfully'
     }
 
     const llmStream = await client.chat.completions.create({
@@ -104,6 +197,8 @@ export async function POST(req: NextRequest) {
             ? accumulated.join('')
             : accumulated
 
+          console.log('📜 running onend callback')
+
           const match = rawSpec.match(/<content>([\s\S]+)<\/content>/)
           if (match) {
             const extractedContent = decodeHtmlEntities(match[1].trim())
@@ -111,12 +206,14 @@ export async function POST(req: NextRequest) {
 
             try {
               const schema = JSON.parse(extractedContent)
-              const hasForm =
-                JSON.stringify(schema).includes('"component":"Form"')
-
-              if (hasForm) {
+              if (isMetaForm(schema)) {
+                globalForFormCache.saveFormSpec = schema
+                console.log('🔸 Cached save metadata form')
+              } else if (!isConfirmationUI(schema)) {
                 globalForFormCache.lastFormSpec = schema
-                console.log('💾 Stored last form schema globally')
+                console.log('💾 Cached user form schema')
+              } else {
+                console.log('⛔️ Ignored confirmation UI schema')
               }
             } catch (err) {
               console.error('❌ Failed to parse schema JSON:', err)
@@ -125,12 +222,17 @@ export async function POST(req: NextRequest) {
 
           // ✅ On save intent, persist the *last remembered* schema
           if (isSaveIntent(incomingMessages)) {
+            const { title, description } = extractTitleDesc(incomingMessages)
+            console.log('On save intent, extracted title/description:', {
+              title,
+              description,
+            })
             const cachedForm = globalForFormCache.lastFormSpec
             if (cachedForm) {
               await dbConnect()
               const doc = await Form.create({
-                title: 'Untitled Form',
-                description: 'Generated via chat',
+                title,
+                description,
                 schema: cachedForm,
               })
               console.log(
