@@ -11,6 +11,7 @@
   "dependencies": {
     "@thesysai/genui-sdk": "^0.6.33",
     "eslint-plugin-jsx-a11y": "^6.10.2",
+    "mongoose": "^8.18.2",
     "next": "15.5.2",
     "openai": "^5.20.1",
     "react": "19.1.0",
