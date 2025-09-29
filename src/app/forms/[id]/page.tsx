@@ -2,56 +2,58 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { C1Component } from '@thesysai/genui-sdk'
 
-export default function SubmissionsPage() {
+export default function FormPage() {
   const params = useParams()
-  const formId = params?.id as string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [submissions, setSubmissions] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const { id } = params
+  const [c1Response, setC1Response] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!formId) return
-    const fetchSubmissions = async () => {
-      try {
-        const res = await fetch(`/api/forms/${formId}/submissions`)
-        const data = await res.json()
-        if (data.success) {
-          setSubmissions(data.submissions)
-        }
-      } catch (err) {
-        console.error('Error fetching submissions:', err)
-      } finally {
-        setLoading(false)
-      }
+    async function fetchForm() {
+      const res = await fetch(`/api/forms/get?id=${id}`)
+      const data = await res.json()
+
+      // The schema we stored in Mongo is JSON
+      // Wrap it back into <content>...</content> string
+      const wrappedSpec = `<content>${JSON.stringify(data.schema)}</content>`
+
+      console.log('wrappedSpec', wrappedSpec)
+      setC1Response(wrappedSpec)
     }
-    fetchSubmissions()
-  }, [formId])
+    if (id) fetchForm()
+  }, [id])
 
-  if (loading) return <p>Loading submissions...</p>
-
-  if (submissions.length === 0) return <p>No submissions yet for this form.</p>
+  if (!c1Response) return <div>Loading...</div>
 
   return (
-    <div className="p-6">
-      <h1 className="mb-4 text-xl font-bold">Submissions</h1>
-      <div className="space-y-4">
-        {submissions.map((sub, idx) => (
-          <div key={sub._id} className="rounded-lg border p-4 shadow-sm">
-            <h2 className="font-semibold">Submission #{idx + 1}</h2>
-            <ul className="mt-2 space-y-1">
-              {Object.entries(sub.response).map(([field, value]) => (
-                <li key={field}>
-                  <strong>{field}:</strong> {String(value)}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 text-xs text-gray-500">
-              {new Date(sub.createdAt).toLocaleString()}
-            </p>
-          </div>
-        ))}
-      </div>
+    <div className="p-4">
+      <C1Component
+        c1Response={c1Response}
+        isStreaming={false} // since this is static schema
+        onAction={async (action) => {
+          console.log('🔹 Action fired:', action)
+
+          try {
+            const res = await fetch(`/api/forms/submit`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                formId: id,
+                response: action.llmFriendlyMessage,
+              }),
+            })
+
+            if (!res.ok) {
+              console.error('Failed to submit form:', await res.text())
+            } else {
+              console.log('✅ Form submitted successfully')
+            }
+          } catch (err) {
+            console.error('Error submitting form:', err)
+          }
+        }}
+      />
     </div>
   )
 }
