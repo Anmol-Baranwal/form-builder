@@ -8,17 +8,13 @@ export default function FormPage() {
   const params = useParams()
   const { id } = params
   const [c1Response, setC1Response] = useState<string | null>(null)
+  const [resetKey, setResetKey] = useState<number>(0)
 
   useEffect(() => {
     async function fetchForm() {
       const res = await fetch(`/api/forms/get?id=${id}`)
       const data = await res.json()
-
-      // The schema we stored in Mongo is JSON
-      // Wrap it back into <content>...</content> string
       const wrappedSpec = `<content>${JSON.stringify(data.schema)}</content>`
-
-      console.log('wrappedSpec', wrappedSpec)
       setC1Response(wrappedSpec)
     }
     if (id) fetchForm()
@@ -29,11 +25,11 @@ export default function FormPage() {
   return (
     <div className="p-4">
       <C1Component
+        key={resetKey}
         c1Response={c1Response}
-        isStreaming={false} // since this is static schema
+        isStreaming={false}
         onAction={async (action) => {
           console.log('🔹 Action fired:', action)
-
           try {
             const res = await fetch(`/api/forms/submit`, {
               method: 'POST',
@@ -43,11 +39,11 @@ export default function FormPage() {
                 response: action.llmFriendlyMessage,
               }),
             })
-
             if (!res.ok) {
               console.error('Failed to submit form:', await res.text())
             } else {
               console.log('✅ Form submitted successfully')
+              setResetKey((k) => k + 1)
             }
           } catch (err) {
             console.error('Error submitting form:', err)
