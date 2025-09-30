@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { Trash2 } from 'lucide-react'
 
 export default function SubmissionsPage() {
   const params = useParams()
@@ -10,23 +11,36 @@ export default function SubmissionsPage() {
   const [submissions, setSubmissions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const fetchSubmissions = async () => {
     if (!formId) return
-    const fetchSubmissions = async () => {
-      try {
-        const res = await fetch(`/api/forms/${formId}/submissions`)
-        const data = await res.json()
-        if (data.success) {
-          setSubmissions(data.submissions)
-        }
-      } catch (err) {
-        console.error('Error fetching submissions:', err)
-      } finally {
-        setLoading(false)
+    try {
+      const res = await fetch(`/api/forms/${formId}/submissions`)
+      const data = await res.json()
+      if (data.success) {
+        setSubmissions(data.submissions)
       }
+    } catch (err) {
+      console.error('Error fetching submissions:', err)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchSubmissions()
   }, [formId])
+
+  const handleDelete = async (submissionId: string) => {
+    try {
+      await fetch(`/api/forms/${formId}/submissions/${submissionId}`, {
+        method: 'DELETE',
+      })
+      // re-fetch after delete
+      fetchSubmissions()
+    } catch (err) {
+      console.error('Error deleting submission:', err)
+    }
+  }
 
   if (loading) {
     return (
@@ -69,6 +83,9 @@ export default function SubmissionsPage() {
               <th className="px-4 py-3 text-left font-medium text-black">
                 Submitted At
               </th>
+              <th className="px-4 py-3 text-left font-medium text-black">
+                Delete
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-gray-200">
@@ -82,6 +99,14 @@ export default function SubmissionsPage() {
                 ))}
                 <td className="px-4 py-3 text-xs text-gray-800">
                   {new Date(sub.createdAt).toLocaleString()}
+                </td>
+                <td className="px-4 py-3 text-xs text-gray-800">
+                  <button
+                    onClick={() => handleDelete(sub._id)}
+                    className="cursor-pointer text-red-400"
+                  >
+                    <Trash2 className={'h-4 w-4'} />
+                  </button>
                 </td>
               </tr>
             ))}
