@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Download } from 'lucide-react'
 
 export default function SubmissionsPage() {
   const params = useParams()
@@ -35,11 +35,34 @@ export default function SubmissionsPage() {
       await fetch(`/api/forms/${formId}/submissions/${submissionId}`, {
         method: 'DELETE',
       })
-      // re-fetch after delete
       fetchSubmissions()
     } catch (err) {
       console.error('Error deleting submission:', err)
     }
+  }
+
+  const handleDownload = () => {
+    if (submissions.length === 0) return
+
+    let mdContent = `# Submissions for Form ${formId}\n\n`
+
+    submissions.forEach((sub, idx) => {
+      mdContent += `## Submission ${idx + 1}\n`
+      Object.entries(sub.response).forEach(([key, value]) => {
+        mdContent += `- **${key}**: ${String(value)}\n`
+      })
+      mdContent += `- **Submitted At**: ${new Date(
+        sub.createdAt
+      ).toLocaleString()}\n\n`
+    })
+
+    const blob = new Blob([mdContent], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `form-${formId}-submissions.md`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   if (loading) {
@@ -58,14 +81,21 @@ export default function SubmissionsPage() {
     )
   }
 
-  // Take schema from first submission (assuming consistent fields per form)
   const fields = Object.keys(submissions[0].response || {})
 
   return (
-    <div className="p-6">
-      <h2 className="font-unlock mt-6 mb-8 flex justify-center text-4xl font-semibold text-purple-700">
-        Submissions
-      </h2>
+    <div className="p-8">
+      <div className="mb-8 flex items-center justify-between">
+        <h2 className="font-unlock text-4xl font-semibold text-purple-700">
+          Submissions
+        </h2>
+        <button
+          onClick={handleDownload}
+          className="flex cursor-pointer items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm text-white hover:bg-purple-700"
+        >
+          <Download className="h-4 w-4" /> Download All
+        </button>
+      </div>
 
       <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
         <table className="min-w-full divide-y divide-gray-200 bg-white text-sm">
@@ -90,7 +120,7 @@ export default function SubmissionsPage() {
           </thead>
           <tbody className="divide-y divide-gray-100 bg-gray-200">
             {submissions.map((sub, idx) => (
-              <tr key={sub._id} className="">
+              <tr key={sub._id}>
                 <td className="px-3 py-3 text-gray-800">{idx + 1}</td>
                 {fields.map((field) => (
                   <td key={field} className="px-3 py-3 text-gray-800">
@@ -105,7 +135,7 @@ export default function SubmissionsPage() {
                     onClick={() => handleDelete(sub._id)}
                     className="cursor-pointer text-red-400"
                   >
-                    <Trash2 className={'h-4 w-4'} />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </td>
               </tr>
