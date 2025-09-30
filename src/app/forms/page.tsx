@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { Trash2 } from 'lucide-react'
 
 type FormMeta = {
   id: string
@@ -12,14 +13,28 @@ type FormMeta = {
 export default function FormsListPage() {
   const [forms, setForms] = useState<FormMeta[]>([])
 
+  const fetchForms = async () => {
+    const res = await fetch('/api/forms/list')
+    const data = await res.json()
+    setForms(data.forms || [])
+  }
+
   useEffect(() => {
-    fetch('/api/forms/list')
-      .then((res) => res.json())
-      .then((data) => {
-        setForms(data.forms || [])
-      })
-      .catch(() => setForms([]))
+    fetchForms()
   }, [])
+
+  const handleDelete = async (id: string) => {
+    try {
+      await fetch(`/api/forms/delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      fetchForms()
+    } catch (err) {
+      console.error('Error deleting form:', err)
+    }
+  }
 
   if (forms.length === 0) {
     return (
@@ -42,8 +57,15 @@ export default function FormsListPage() {
         {forms.map((form) => (
           <div
             key={form.id}
-            className="group flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-xl"
+            className="group relative flex flex-col justify-between rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:shadow-xl"
           >
+            <button
+              onClick={() => handleDelete(form.id)}
+              className="absolute top-3 right-3 cursor-pointer text-gray-400 transition hover:text-red-500"
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+
             <div>
               <h3 className="mb-2 text-xl font-semibold text-gray-800">
                 {form.title || 'Untitled Form'}
