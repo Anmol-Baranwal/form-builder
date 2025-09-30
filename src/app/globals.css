@@ -1,8 +1,22 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+}
+
+@layer base {
+  .font-sans {
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .font-manrope {
+    font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .font-unlock {
+    font-family: var(--unlock), ui-sans-serif, system-ui, sans-serif;
+  }
 }
 
 @theme inline {
