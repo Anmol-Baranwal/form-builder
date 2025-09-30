@@ -28,29 +28,65 @@ export default function SubmissionsPage() {
     fetchSubmissions()
   }, [formId])
 
-  if (loading) return <p>Loading submissions...</p>
+  if (loading) {
+    return (
+      <div className="mt-20 flex justify-center text-xl text-gray-500">
+        Loading submissions...
+      </div>
+    )
+  }
 
-  if (submissions.length === 0) return <p>No submissions yet for this form.</p>
+  if (submissions.length === 0) {
+    return (
+      <div className="mt-20 flex justify-center text-lg text-gray-400">
+        No submissions yet for this form.
+      </div>
+    )
+  }
+
+  // Take schema from first submission (assuming consistent fields per form)
+  const fields = Object.keys(submissions[0].response || {})
 
   return (
     <div className="p-6">
-      <h1 className="mb-4 text-xl font-bold">Submissions</h1>
-      <div className="space-y-4">
-        {submissions.map((sub, idx) => (
-          <div key={sub._id} className="rounded-lg border p-4 shadow-sm">
-            <h2 className="font-semibold">Submission #{idx + 1}</h2>
-            <ul className="mt-2 space-y-1">
-              {Object.entries(sub.response).map(([field, value]) => (
-                <li key={field}>
-                  <strong>{field}:</strong> {String(value)}
-                </li>
+      <h2 className="font-unlock mt-6 mb-8 flex justify-center text-4xl font-semibold text-purple-700">
+        Submissions
+      </h2>
+
+      <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+        <table className="min-w-full divide-y divide-gray-200 bg-white text-sm">
+          <thead className="bg-gray-300">
+            <tr>
+              <th className="px-4 py-3 text-left font-medium text-black">#</th>
+              {fields.map((field) => (
+                <th
+                  key={field}
+                  className="px-4 py-3 text-left font-medium text-black capitalize"
+                >
+                  {field}
+                </th>
               ))}
-            </ul>
-            <p className="mt-2 text-xs text-gray-500">
-              {new Date(sub.createdAt).toLocaleString()}
-            </p>
-          </div>
-        ))}
+              <th className="px-4 py-3 text-left font-medium text-black">
+                Submitted At
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 bg-gray-200">
+            {submissions.map((sub, idx) => (
+              <tr key={sub._id} className="">
+                <td className="px-3 py-3 text-gray-800">{idx + 1}</td>
+                {fields.map((field) => (
+                  <td key={field} className="px-3 py-3 text-gray-800">
+                    {String(sub.response[field] ?? '')}
+                  </td>
+                ))}
+                <td className="px-4 py-3 text-xs text-gray-800">
+                  {new Date(sub.createdAt).toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )
