@@ -38,3 +38,152 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+#form-page .crayon-header-top {
+  font-family: 'Unlock', sans-serif;
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+  font-weight: 600;
+  color: #6b21a8;
+}
+
+#form-page .crayon-header-bottom {
+  /* font-family: 'Manrope', sans-serif;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #5b5a5c; */
+  display: none;
+}
+
+#form-page .crayon-label {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  font-weight: 600;
+  color: #5b5a5c;
+  margin-bottom: 0.5rem;
+  margin-top: 1rem;
+  display: block;
+}
+
+#form-page .crayon-input {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #a7a5af;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid #6b21a899;
+  border-radius: 0;
+  padding: 0.75rem 0;
+  margin-bottom: 1.2rem;
+  outline: none;
+  width: 40%;
+  transition: border-color 0.3s;
+  font-weight: 500;
+}
+
+#form-page .crayon-input::placeholder {
+  color: #d1cfd3;
+  opacity: 0.8;
+}
+
+#form-page .crayon-input:focus {
+  border-bottom: 2px solid #6b21a8;
+  color: #fff;
+  background: transparent;
+}
+
+#form-page .crayon-textarea {
+  font-family: 'Manrope', sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #a7a5af;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid #6b21a899;
+  border-radius: 0;
+  padding: 0.75rem 0;
+  margin-bottom: 1.2rem;
+  outline: none;
+  width: 40%;
+  resize: vertical;
+  transition: border-color 0.3s;
+  font-weight: 500;
+  min-height: 3rem;
+}
+
+#form-page .crayon-textarea::placeholder {
+  color: #d1cfd3;
+  opacity: 0.8;
+}
+
+#form-page .crayon-textarea:focus {
+  border-bottom: 2px solid #6b21a8;
+  color: #fff;
+  background: transparent;
+}
+
+#form-page .crayon-buttons {
+  font-family: 'Sans', sans-serif;
+  font-size: 1.08rem;
+  font-weight: 600;
+  width: 20%;
+  color: #18181b;
+  background: #fff;
+  border: 2px solid #fff;
+  border-radius: 40px;
+  padding: 0.8rem 1.2rem;
+  text-align: center;
+  margin-top: 1.1rem;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+#form-page .crayon-buttons:hover,
+#form-page .crayon-buttons:focus {
+  background: #fff;
+  color: #6b21a8;
+  border-color: #6b21a8;
+}
+
+.crayon-radio-item-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.crayon-radio-item-root {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.crayon-radio-item-svg {
+  width: 20px;
+  height: 20px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.crayon-radio-item-label {
+  cursor: pointer;
+  user-select: none;
+  font-family: 'Manrope', sans-serif;
+  font-size: 1rem;
+  color: #5b5a5c;
+  line-height: 1.4;
+}

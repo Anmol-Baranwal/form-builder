@@ -23,7 +23,7 @@ export default function FormPage() {
   if (!c1Response) return <div>Loading...</div>
 
   return (
-    <div className="p-4">
+    <div className="mx-8 p-12" id="form-page">
       <C1Component
         key={resetKey}
         c1Response={c1Response}
