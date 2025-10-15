@@ -1,14 +1,14 @@
-'use client'
-import dynamic from 'next/dynamic'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import ClientApp from '@/components/ClientApp'
 
-const C1ChatWrapper = dynamic(() => import('../components/C1ChatWrapper'), {
-  ssr: false,
-})
+export default async function Home() {
+  const isAuth = (await cookies()).get('auth')?.value === 'true'
+  if (!isAuth) redirect('/home')
 
-export default function Home() {
   return (
     <div className="space-y-8">
-      <C1ChatWrapper />
+      <ClientApp />
     </div>
   )
 }
