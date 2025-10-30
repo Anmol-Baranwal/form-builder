@@ -29,7 +29,6 @@ export default function FormPage() {
         c1Response={c1Response}
         isStreaming={false}
         onAction={async (action) => {
-          console.log('🔹 Action fired:', action)
           try {
             const res = await fetch(`/api/forms/submit`, {
               method: 'POST',
@@ -42,7 +41,6 @@ export default function FormPage() {
             if (!res.ok) {
               console.error('Failed to submit form:', await res.text())
             } else {
-              console.log('✅ Form submitted successfully')
               setResetKey((k) => k + 1)
             }
           } catch (err) {

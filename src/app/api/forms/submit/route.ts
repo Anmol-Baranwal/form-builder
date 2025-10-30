@@ -54,8 +54,6 @@ export async function POST(req: NextRequest) {
   await dbConnect()
   const { formId, response } = await req.json()
 
-  console.log('response', response)
-
   if (!response) {
     return NextResponse.json(
       { success: false, error: 'Missing response data' },

@@ -35,10 +35,6 @@ const globalForFormCache = global as unknown as {
 export async function POST(req: NextRequest) {
   try {
     const incoming = await req.json()
-    console.log(
-      '[api/chat] raw incoming:',
-      JSON.stringify(incoming).slice(0, 1000)
-    )
 
     // Normalize client structure
     let incomingMessages: any[] = []
@@ -93,11 +89,8 @@ export async function POST(req: NextRequest) {
       let title = null,
         description = null
 
-      console.log('Extracting title/desc from messages:', messages.length)
-
       for (const m of [...messages].reverse()) {
-        console.log(`Message content:`, m.content)
-        // 1. Try to parse context JSON
+        // 1. try to parse context JSON
         if (m.content?.includes('<context>')) {
           try {
             const contextMatch = m.content.match(
@@ -105,15 +98,11 @@ export async function POST(req: NextRequest) {
             )
             if (contextMatch) {
               const parsed = JSON.parse(decodeHtmlEntities(contextMatch[1]))
-              console.log(
-                'Parsed context JSON for title/desc:',
-                JSON.stringify(parsed).slice(0, 500)
-              )
               if (Array.isArray(parsed) && parsed[1]?.[0]?.['save-form']) {
                 const formData = parsed[1][0]['save-form']
                 title = formData['formTitle']?.value ?? title
                 description = formData['formDescription']?.value ?? description
-                console.log('Extracted from save-form:', { title, description })
+                // console.log('Extracted from save-form:', { title, description })
               }
             }
           } catch (err) {
@@ -121,24 +110,19 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // 2. Fallback: plain "title:" / "description:" message style
+        // 2.fallback: plain "title:" / "description:" message style
         const content = m.content?.toLowerCase()
-        // if (content?.startsWith('title:')) title = m.content.slice(6).trim()
-        // if (content?.startsWith('description:'))
-        //   description = m.content.slice(12).trim()
-
-        // if (title && description) break
         if (content?.startsWith('title:')) {
           title = m.content.slice(6).trim()
-          console.log('Extracted from plain text title:', title)
+          // console.log('Extracted from plain text title:', title)
         }
         if (content?.startsWith('description:')) {
           description = m.content.slice(12).trim()
-          console.log('Extracted from plain text description:', description)
+          // console.log('Extracted from plain text description:', description)
         }
 
         if (title && description) {
-          console.log('Title and description found, stopping search')
+          // console.log('Title and description found, stopping search')
           break
         }
       }
@@ -225,12 +209,12 @@ export async function POST(req: NextRequest) {
               // store in global cache depending on schema type
               if (isMetaForm(schema)) {
                 globalForFormCache.saveFormSpec = schema
-                console.log('🔸 Cached save metadata form')
+                // console.log('Cached save metadata form')
               } else if (!isConfirmationUI(schema)) {
                 globalForFormCache.lastFormSpec = schema
-                console.log('💾 Cached user form schema')
+                // console.log('Cached user form schema')
               } else {
-                console.log('⛔️ Ignored confirmation UI schema')
+                console.log('Ignored confirmation UI schema')
               }
             } catch (err) {
               console.error(
@@ -243,10 +227,10 @@ export async function POST(req: NextRequest) {
           // ✅ On save intent, persist the *last remembered* schema
           if (isSaveIntent(incomingMessages)) {
             const { title, description } = extractTitleDesc(incomingMessages)
-            console.log('On save intent, extracted title/description:', {
-              title,
-              description,
-            })
+            // console.log('On save intent, extracted title/description:', {
+            //   title,
+            //   description,
+            // })
             const cachedForm = globalForFormCache.lastFormSpec
             if (cachedForm) {
               const origin = req.nextUrl.origin
@@ -259,7 +243,6 @@ export async function POST(req: NextRequest) {
                   schema: cachedForm,
                 }),
               })
-              console.log('✅ Saved last form schema:', cachedForm)
             } else {
               console.warn('⚠️ Save intent but no cached form schema found')
             }
