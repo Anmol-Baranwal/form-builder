@@ -195,15 +195,34 @@ export async function POST(req: NextRequest) {
             ? accumulated.join('')
             : accumulated
 
-          console.log('📜 running onend callback')
+          const matches = [
+            ...rawSpec.matchAll(/<content>([\s\S]+?)<\/content>/g),
+          ]
 
-          const match = rawSpec.match(/<content>([\s\S]+)<\/content>/)
-          if (match) {
-            const extractedContent = decodeHtmlEntities(match[1].trim())
-            console.log('📜 UI Spec received from LLM:', extractedContent)
+          for (const [i, m] of matches.entries()) {
+            const extractedContent = decodeHtmlEntities(m[1].trim())
+            // console.log(
+            //   `📜 [Block ${i + 1}] UI Spec received:`,
+            //   extractedContent.slice(0, 500)
+            // )
 
             try {
-              const schema = JSON.parse(extractedContent)
+              // clean out any leftover <content> tags
+              const cleanContent = extractedContent
+                .replace(/<\/content>/g, '')
+                .replace(/<content>/g, '')
+                .trim()
+
+              // 🧩 Extract only the first valid JSON object from the string
+              const firstJsonMatch = cleanContent.match(/\{[\s\S]*\}/)
+              const jsonToParse = firstJsonMatch
+                ? firstJsonMatch[0]
+                : cleanContent
+
+              // parsing only the isolated JSON
+              const schema = JSON.parse(jsonToParse)
+
+              // store in global cache depending on schema type
               if (isMetaForm(schema)) {
                 globalForFormCache.saveFormSpec = schema
                 console.log('🔸 Cached save metadata form')
@@ -214,7 +233,10 @@ export async function POST(req: NextRequest) {
                 console.log('⛔️ Ignored confirmation UI schema')
               }
             } catch (err) {
-              console.error('❌ Failed to parse schema JSON:', err)
+              console.error(
+                `Failed to parse schema JSON for block ${i + 1}:`,
+                err
+              )
             }
           }
 
@@ -237,6 +259,7 @@ export async function POST(req: NextRequest) {
                   schema: cachedForm,
                 }),
               })
+              console.log('✅ Saved last form schema:', cachedForm)
             } else {
               console.warn('⚠️ Save intent but no cached form schema found')
             }
