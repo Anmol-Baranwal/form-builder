@@ -1,8 +1,17 @@
 # Form Builder
 
-Create dynamic forms using natural language powered by [Next.js](https://nextjs.org/) and [Thesys](https://thesys.dev/). You can interactively design forms by describing your requirements and the application generates corresponding form fields. Submissions are stored in MongoDB and each form has its own listing and response pages.
+A self-hosted form builder built with [Next.js](https://nextjs.org/) and [C1 by Thesys](https://thesys.dev/). You can create dynamic forms using natural language, just describe what you need and the app generates the fields automatically. Each form has its own listing and submission pages, with all responses stored in MongoDB.
 
-![form builder](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/y7pnaxukw4ulqu1ooz0t.png)
+To use the application:
+
+1. Fork this repository.
+2. Set your admin password and other credentials in `.env` (check the format below).
+3. Deploy it on any hosting provider (Vercel, Netlify, Render) or your own server.
+4. Visit `/login` and enter your admin password.
+3. After successful login, you will be redirected to the chat interface at `/`.
+4. You can now create forms as needed (see the demo below).
+
+https://github.com/user-attachments/assets/977e80bc-1a5a-46ba-9999-b1c34ffc060a
 
 ## Project Structure
 
@@ -48,7 +57,11 @@ Create dynamic forms using natural language powered by [Next.js](https://nextjs.
     │   ├── layout.tsx
     │   └── page.tsx              
     │
-    ├── components/               
+    ├── components/  
+    │   ├──C1ChatWrapper.tsx
+    |   ├──ClientApp.tsx
+    |   ├──FormsListPage.ts
+    │   └──SubmissionsPage.tsx
     │
     └── lib/                      
         ├── dbConnect.ts          # MongoDB connection helper
@@ -59,51 +72,6 @@ Create dynamic forms using natural language powered by [Next.js](https://nextjs.
         └── utils.ts              
 ```
 
-## Environment Variables
-
-Copy the `.env.example` file and update environment variables:
-
-```
-cp .env.example .env
-```
-
-Open the `.env` file and set your values:
-
-```env
-THESYS_API_KEY=<your-thesys-api-key>
-MONGODB_URI=<your-mongodb-uri>
-THESYS_MODEL=c1/anthropic/claude-3.5-sonnet/v-20250709
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-ADMIN_PASSWORD=<your-admin-password>
-```
-
-## Getting Started
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Run the development server:
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser to view the app.
-
-## Usage
-
-To use the application:
-1. Fork the repo and set the admin password in `.env`.
-2. Navigate to `/login` and enter your admin password.
-3. After successful login, you will be redirected to the chat interface at `/`.
-4. You can now create forms as needed (see Available Routes below).
-
-## Deploying to Vercel
-
-To deploy on Vercel, push the project to a Git repository and import it into Vercel. In the Vercel dashboard under **Project Settings > Environment Variables**, add the same variables you set in `.env`. Once deployed, your app will be live at the provided URL.
 
 ## Available Routes
 
@@ -127,6 +95,44 @@ To deploy on Vercel, push the project to a Git repository and import it into Ver
 - `POST /api/forms/submit` – Submit a form response
 - `GET  /api/forms/[id]` – List submissions for a form
 - `DELETE /api/forms/[id]/submissions` – Delete a submission by ID
+
+## Environment Variables
+
+Copy the `.env.example` file and update environment variables:
+
+```
+cp .env.example .env
+```
+
+Open the `.env` file and set your values:
+
+```env
+THESYS_API_KEY=<your-thesys-api-key>
+MONGODB_URI=<your-mongodb-uri>
+THESYS_MODEL=c1/anthropic/claude-sonnet-4/v-20250617
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+ADMIN_PASSWORD=<your-admin-password>
+```
+
+## Getting Started
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Run the development server:
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser to view the app.
+
+## Deploying to Vercel
+
+To deploy on Vercel, push the project to a Git repository and import it into Vercel. In the Vercel dashboard under **Project Settings > Environment Variables**, add the same variables you set in `.env`. Once deployed, your app will be live at the provided URL.
 
 ## License
 
