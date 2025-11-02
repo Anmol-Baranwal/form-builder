@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
 
     const llmStream = await client.chat.completions.create({
       model:
-        process.env.THESYS_MODEL || 'c1/anthropic/claude-3.5-sonnet/v-20250709',
+        process.env.THESYS_MODEL || 'c1/anthropic/claude-sonnet-4/v-20250617',
       messages: messagesToSend,
       stream: true,
     })
