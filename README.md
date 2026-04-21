@@ -142,9 +142,17 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser to view the app.
 
+## Deploying to Diploi
+
+[![launch with diploi button](https://diploi.com/launch-big.svg)](https://diploi.com/launch/Anmol-Baranwal/form-builder)
+
+In Diploi, open **Deployment Page > Options > Next.js > Environment** and add the same environment variables from your `.env` file.
+After you save the changes, Diploi will rebuild the app and make it available at the preview URL shown on the Deployment page.
+
 ## Deploying to Vercel
 
 To deploy on Vercel, push the project to a Git repository and import it into Vercel. In the Vercel dashboard under **Project Settings > Environment Variables**, add the same variables you set in `.env`. Once deployed, your app will be live at the provided URL.
+
 
 ## License
 
